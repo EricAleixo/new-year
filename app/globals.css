@@ -14,13 +14,23 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #000;
     --foreground: #ededed;
   }
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(
+    to bottom,
+    #020617, /* slate-950 */
+    #172554, /* blue-950 */
+    #1e1b4b  /* indigo-950 */
+  );
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+
+button{
+  cursor: pointer;
 }
