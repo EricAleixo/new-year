@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 
 interface ModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ const Modal = ({ isOpen, onClose, friendName, color, password, onUnlocked }: Mod
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showError, setShowError] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -63,16 +65,78 @@ const Modal = ({ isOpen, onClose, friendName, color, password, onUnlocked }: Mod
     };
   }, [isOpen]);
 
-  const handlePasswordSubmit = () => {
-    if (passwordInput === password) {
-      setIsUnlocked(true);
-      setShowError(false);
-      if (onUnlocked) {
-        onUnlocked();
+  const handlePasswordSubmit = async () => {
+    try {
+      const response = await fetch('/api/validate-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          friendName: friendName,
+          password: passwordInput,
+        }),
+      });
+
+      // Verifica se a resposta é JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('Resposta não é JSON:', await response.text());
+        // Fallback: validar localmente se a API não estiver disponível
+        if (passwordInput === password) {
+          setIsUnlocked(true);
+          setShowError(false);
+          // Salva no storage que esse amigo foi desbloqueado
+          saveUnlockedFriend(friendName);
+          if (onUnlocked) {
+            onUnlocked();
+          }
+        } else {
+          setShowError(true);
+          setTimeout(() => setShowError(false), 2000);
+        }
+        return;
       }
-    } else {
-      setShowError(true);
-      setTimeout(() => setShowError(false), 2000);
+
+      const data = await response.json();
+
+      if (data.success) {
+        setIsUnlocked(true);
+        setShowError(false);
+        // Salva no storage que esse amigo foi desbloqueado
+        saveUnlockedFriend(friendName);
+        if (onUnlocked) {
+          onUnlocked();
+        }
+      } else {
+        setShowError(true);
+        setTimeout(() => setShowError(false), 2000);
+      }
+    } catch (error) {
+      console.error('Erro ao validar senha:', error);
+      // Fallback: validar localmente se houver erro
+      if (passwordInput === password) {
+        setIsUnlocked(true);
+        setShowError(false);
+        // Salva no storage que esse amigo foi desbloqueado
+        saveUnlockedFriend(friendName);
+        if (onUnlocked) {
+          onUnlocked();
+        }
+      } else {
+        setShowError(true);
+        setTimeout(() => setShowError(false), 2000);
+      }
+    }
+  };
+
+  // Função auxiliar para salvar o amigo desbloqueado
+  const saveUnlockedFriend = (name: string) => {
+    try {
+      const nameKey = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-');
+      localStorage.setItem(`unlocked:${nameKey}`, 'true');
+    } catch (error) {
+      console.error('Erro ao salvar desbloqueio:', error);
     }
   };
 
@@ -108,7 +172,9 @@ const Modal = ({ isOpen, onClose, friendName, color, password, onUnlocked }: Mod
     }
     
     setTimeout(() => {
-      alert(`🎉 ${friendName}, você é incrível! Continue brilhando! ✨`);
+      // Redireciona para a página de mensagem do amigo
+      const nameSlug = friendName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-');
+      router.push(`/message/${nameSlug}`);
     }, 500);
   };
 
@@ -200,7 +266,8 @@ const Modal = ({ isOpen, onClose, friendName, color, password, onUnlocked }: Mod
 
                       <button
                         onClick={handlePasswordSubmit}
-                        className={`w-full bg-linear-to-r ${styles.lock} hover:opacity-90 text-white font-bold py-3 px-6 rounded-lg transition-all transform active:scale-95 ${styles.shadow} shadow-lg text-base sm:text-lg`}
+                        disabled={!passwordInput}
+                        className={`w-full bg-linear-to-r ${styles.lock} hover:opacity-90 text-white font-bold py-3 px-6 rounded-lg transition-all transform active:scale-95 ${styles.shadow} shadow-lg text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         🗝️ Desbloquear
                       </button>
@@ -313,7 +380,7 @@ const TreasureChest = ({ friendName, color = 'gold', password, onUnlocked }: Tre
     script.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js';
     script.async = true;
     document.body.appendChild(script);
-    
+
     return () => {
       if (document.body.contains(script)) {
         document.body.removeChild(script);
@@ -495,4 +562,4 @@ const TreasureChest = ({ friendName, color = 'gold', password, onUnlocked }: Tre
   );
 };
 
-export default TreasureChest
+export default TreasureChest;
